@@ -21,6 +21,7 @@ namespace DngOpcodesEditor
         void btnImportDNG_Click(object sender, RoutedEventArgs e) { ViewModel.ImportDng(); ViewModel.ApplyOpcodes(); }
         void btnImportBin_Click(object sender, RoutedEventArgs e) { ViewModel.ImportBin(); ViewModel.ApplyOpcodes(); }
         void btnOpenImage_Click(object sender, RoutedEventArgs e) { ViewModel.OpenImage(); ViewModel.ApplyOpcodes(); }
+        void btnStripVigLum_Click(object sender, RoutedEventArgs e) => ViewModel.StripVigLumBatch();
         void btnApplyOpcodes_Click(object sender, RoutedEventArgs e) => ViewModel.ApplyOpcodes();
         void btnDeleteOpcode_Click(object sender, RoutedEventArgs e) { ViewModel.Opcodes.Remove(ViewModel.SelectedOpcode); ViewModel.ApplyOpcodes(); }
         void btnExportBin_Click(object sender, RoutedEventArgs e) => ViewModel.ExportBin();

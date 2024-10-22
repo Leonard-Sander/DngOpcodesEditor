@@ -67,8 +67,8 @@
             <StackPanel Grid.Column="2">
                 <StackPanel.Resources>
                     <Style TargetType="Button">
-                        <Setter Property="Margin" Value="0,0,0,10" />
-                        <Setter Property="Padding" Value="5" />
+                        <Setter Property="Margin" Value="0,0,0,8" />
+                        <Setter Property="Padding" Value="3" />
                     </Style>
                 </StackPanel.Resources>
                 <Button Content="Import from DNG" Click="btnImportDNG_Click" />
@@ -79,6 +79,7 @@
                 <Button Content="Move Down" Click="btnMoveDown_Click" />-->
                 <Button Content="Delete Opcode" Click="btnDeleteOpcode_Click" />
                 <Button Content="Clear" Click="btnClear_Click" />
+                <Button Content="Strip Luma OPC2GM" Click="btnStripVigLum_Click" />
                 <!--<ComboBox x:Name="cbOpcodesIDs" SelectedIndex="0" />
                 <Button Content="Add Opcode" Click="btnAddOpcode_Click" />-->
             </StackPanel>
@@ -87,6 +88,7 @@
         <Button Content="Open Reference Image" Grid.Row="6" Click="btnOpenImage_Click" />
         <Image x:Name="imageDst" Grid.Row="2" Source="{Binding ImgDst.Bmp}" Grid.Column="2"/>
         <Button Content="Save Preview Image" Grid.Row="6" Grid.Column="2" Click="btnSaveImage_Click" />
+        <Button Content="Strip Opcode Luma" Grid.Row="7" Grid.Column="2" Click="btnStripVigLum_Click" />
         <!--<Button Grid.Column="2" Content="Apply Opcodes" Grid.Row="5" Click="btnApplyOpcodes_Click"/>-->
         <GridSplitter Grid.ColumnSpan="3" Grid.Row="1" HorizontalAlignment="Stretch" Background="#00F0F0F0" />
         <TextBlock x:Name="tbInfo" Grid.ColumnSpan="3" Grid.Row="4" HorizontalAlignment="Center" d:Text="Info" />
