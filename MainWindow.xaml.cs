@@ -21,7 +21,8 @@ namespace DngOpcodesEditor
         void btnImportDNG_Click(object sender, RoutedEventArgs e) { ViewModel.ImportDng(); ViewModel.ApplyOpcodes(); }
         void btnImportBin_Click(object sender, RoutedEventArgs e) { ViewModel.ImportBin(); ViewModel.ApplyOpcodes(); }
         void btnOpenImage_Click(object sender, RoutedEventArgs e) { ViewModel.OpenImage(); ViewModel.ApplyOpcodes(); }
-        void btnStripVigLum_Click(object sender, RoutedEventArgs e) => ViewModel.StripVigLumBatch();
+        void btnStripVigLum_Click(object sender, RoutedEventArgs e) =>  ViewModel.BatchDNG(); 
+        void btnFlatfield_Click(object sender, RoutedEventArgs e) =>  ViewModel.ImportFlatField();
         void btnApplyOpcodes_Click(object sender, RoutedEventArgs e) => ViewModel.ApplyOpcodes();
         void btnDeleteOpcode_Click(object sender, RoutedEventArgs e) { ViewModel.Opcodes.Remove(ViewModel.SelectedOpcode); ViewModel.ApplyOpcodes(); }
         void btnExportBin_Click(object sender, RoutedEventArgs e) => ViewModel.ExportBin();
@@ -81,6 +82,12 @@ namespace DngOpcodesEditor
         }
         void CheckBox_Checked(object sender, RoutedEventArgs e) => ViewModel.ApplyOpcodes();
         void CheckBox_Unchecked(object sender, RoutedEventArgs e) => ViewModel.ApplyOpcodes();
+        void StripLum_Checked(object sender, RoutedEventArgs e) => ViewModel.StripLum = true;
+        void StripLum_Unchecked(object sender, RoutedEventArgs e) => ViewModel.StripLum = false;
+        void BGGRFix_Checked(object sender, RoutedEventArgs e) => ViewModel.BGGRFix = true;
+        void BGGRFix_Unchecked(object sender, RoutedEventArgs e) => ViewModel.BGGRFix = false;
+        void GRBGFix_Checked(object sender, RoutedEventArgs e) => ViewModel.GRBGFix = true;
+        void GRBGFix_Unchecked(object sender, RoutedEventArgs e) => ViewModel.GRBGFix = false;
         /*
         void btnMoveUp_Click(object sender, RoutedEventArgs e) { }
         void btnMoveDown_Click(object sender, RoutedEventArgs e) { }

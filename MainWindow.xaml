@@ -1,7 +1,7 @@
 ﻿<Window x:Class="DngOpcodesEditor.MainWindow" xmlns:local="clr-namespace:DngOpcodesEditor"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:d="http://schemas.microsoft.com/expression/blend/2008" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="d" 
         WindowStartupLocation="CenterScreen" WindowState="Normal" SnapsToDevicePixels="True" AllowDrop="True" Drop="Window_Drop"
-        Title="" Width="1200" Height="768" Background="#FFDEDEDE">
+        Title="" Width="1200" Height="900" Background="#FFDEDEDE">
     <Window.DataContext>
         <local:MainWindowVM x:Name="ViewModel" />
     </Window.DataContext>
@@ -19,7 +19,7 @@
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
-            <RowDefinition Height="220" />
+            <RowDefinition Height="320" />
             <RowDefinition Height="10"/>
             <RowDefinition/>
             <RowDefinition Height="5"/>
@@ -79,7 +79,11 @@
                 <Button Content="Move Down" Click="btnMoveDown_Click" />-->
                 <Button Content="Delete Opcode" Click="btnDeleteOpcode_Click" />
                 <Button Content="Clear" Click="btnClear_Click" />
-                <Button Content="Strip Luma OPC2GM" Click="btnStripVigLum_Click" />
+                <Button Content="Batch DNG Process" Click="btnStripVigLum_Click" Margin="0,10,0,0" />
+                <CheckBox IsChecked="{Binding LuminanceStripping,Mode=TwoWay}" Content="Strip Luminance" Checked="StripLum_Checked" Unchecked="StripLum_Unchecked"/>
+                <CheckBox IsChecked="{Binding BGGRFix,Mode=TwoWay}" Content="Fix BGGR CFA" Checked="BGGRFix_Checked" Unchecked="BGGRFix_Unchecked"/>
+                <CheckBox IsChecked="{Binding GRBGFix,Mode=TwoWay}" Content="Fix GRBG CFA" Checked="GRBGFix_Checked" Unchecked="GRBGFix_Unchecked"/>
+                <Button Content="WIP Tiff Flatfield OP" Click="btnFlatfield_Click" Margin="0,10,0,0" />
                 <!--<ComboBox x:Name="cbOpcodesIDs" SelectedIndex="0" />
                 <Button Content="Add Opcode" Click="btnAddOpcode_Click" />-->
             </StackPanel>
@@ -88,7 +92,6 @@
         <Button Content="Open Reference Image" Grid.Row="6" Click="btnOpenImage_Click" />
         <Image x:Name="imageDst" Grid.Row="2" Source="{Binding ImgDst.Bmp}" Grid.Column="2"/>
         <Button Content="Save Preview Image" Grid.Row="6" Grid.Column="2" Click="btnSaveImage_Click" />
-        <Button Content="Strip Opcode Luma" Grid.Row="7" Grid.Column="2" Click="btnStripVigLum_Click" />
         <!--<Button Grid.Column="2" Content="Apply Opcodes" Grid.Row="5" Click="btnApplyOpcodes_Click"/>-->
         <GridSplitter Grid.ColumnSpan="3" Grid.Row="1" HorizontalAlignment="Stretch" Background="#00F0F0F0" />
         <TextBlock x:Name="tbInfo" Grid.ColumnSpan="3" Grid.Row="4" HorizontalAlignment="Center" d:Text="Info" />
