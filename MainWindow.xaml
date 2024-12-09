@@ -79,11 +79,12 @@
                 <Button Content="Move Down" Click="btnMoveDown_Click" />-->
                 <Button Content="Delete Opcode" Click="btnDeleteOpcode_Click" />
                 <Button Content="Clear" Click="btnClear_Click" />
-                <Button Content="Batch DNG Process" Click="btnStripVigLum_Click" Margin="0,10,0,0" />
-                <CheckBox IsChecked="{Binding LuminanceStripping,Mode=TwoWay}" Content="Strip Luminance" Checked="StripLum_Checked" Unchecked="StripLum_Unchecked"/>
+                <Button Content="Batch DNG Gainmap" Click="btnStripVigLum_Click" Margin="0,10,0,0" />                
                 <CheckBox IsChecked="{Binding BGGRFix,Mode=TwoWay}" Content="Fix BGGR CFA" Checked="BGGRFix_Checked" Unchecked="BGGRFix_Unchecked"/>
                 <CheckBox IsChecked="{Binding GRBGFix,Mode=TwoWay}" Content="Fix GRBG CFA" Checked="GRBGFix_Checked" Unchecked="GRBGFix_Unchecked"/>
-                <Button Content="WIP Tiff Flatfield OP" Click="btnFlatfield_Click" Margin="0,10,0,0" />
+                <CheckBox IsChecked="{Binding LuminanceStripping,Mode=TwoWay}" Content="Keep Luminance" Checked="StripLum_Unchecked" Unchecked="StripLum_Unchecked"/>
+                <CheckBox IsChecked="{Binding DelFiles,Mode=TwoWay}" Content="Keep Intermed Files" Checked="DelFiles_Unchecked" Unchecked="DelFiles_Checked"/>
+                <Button Content="Batch White Image" Click="btnFlatfield_Click" Margin="0,10,0,0" />
                 <!--<ComboBox x:Name="cbOpcodesIDs" SelectedIndex="0" />
                 <Button Content="Add Opcode" Click="btnAddOpcode_Click" />-->
             </StackPanel>
