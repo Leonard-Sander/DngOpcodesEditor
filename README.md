@@ -7,7 +7,8 @@ Additionally to the original functionality, there are 2 more Buttons in the UI.
 
 "Batch White Image" allows reading a white image dng and exporting a version with luminance stripped for use in Raw Therappe. This will only work with dngs that have a black level of 0. Anything above that will lead to miscorrections. Afterwards you can select a dng sequence where the luminance stripped white image will be applied to. If you want to also apply the Luminance Correction to the dngs, check "Keep Luminance". By default all intermediate files are deleted. Enable "Keep Intermediate Files" to see the conversion steps for both white image and converted dngs.
 
-This Tool is very slow and ressource inefficient. There is no Progress Bar. Execute from IDE for Progress Notice in Console. 
+This Tool is very slow and ressource inefficient. Expect Issues and Crashes. Maybe restart your PC and do not access the files via Windows Explorer. 
+There is no Progress Bar. Execute from IDE for Progress Notice in Console. 
 
 Additionally to exiftool, dcraw.exe binary is included to extract raw data tiff from dngs and Adobe SDK dng_validate.exe binary is included to validate input dngs and author output dngs.
 
