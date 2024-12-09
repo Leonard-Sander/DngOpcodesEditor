@@ -1,7 +1,15 @@
 # Dng Opcodes Editor
 
-Dirty Fork with dirty Changes
-Read, Write, Modify and Preview DNG Opcodes
+Dirty WIP Fork of (https://github.com/electro-logic/DngOpcodesEditor)
+Additionally to the original functionality, there are 2 more Buttons in the UI.
+
+"Batch DNG Gainmap" allows the selection of multiple dng files. By default the dng vignette correction metadata will be stripped of its luminance component. Check "Keep Luminance" otherwise. Also gainmap mismatch for BGGR and GRBG CFA Sensors are available by their respective checkboxes. Enabling "Keep Luminance" without mismatch fixes will not start the conversion, because nothing would be changed inside the dngs
+
+"Batch White Image" allows reading a white image dng and exporting a version with luminance stripped for use in Raw Therappe. Afterwards you can select a dng sequence where the luminance stripped white image will be applied to. If you want to also apply the Luminance Correction to the dngs, check "Keep Luminance". By default all intermediate files are deleted. Enable "Keep Intermediate Files" to see the conversion steps for both white image and converted dngs.
+
+This will only work with dngs that have a black level of 0. Anything above that will lead to miscorrections.
+
+Additionally to exiftool, dcraw.exe binary is included to extract raw data tiff from dngs and Adobe SDK dng_validate.exe binary is included to validate input dngs and author output dngs.
 
 ![alt text](docs/screenshoot.png)
 
