@@ -1,6 +1,7 @@
 # Dng Opcodes Editor
 
 Dirty WIP Fork of (https://github.com/electro-logic/DngOpcodesEditor)
+
 Additionally to the original functionality, there are 2 more Buttons in the UI.
 
 "Batch DNG Gainmap" allows the selection of multiple dng files. By default the dng vignette correction metadata will be stripped of its luminance component. Check "Keep Luminance" otherwise. Also gainmap mismatch for BGGR and GRBG CFA Sensors are available by their respective checkboxes. Enabling "Keep Luminance" without mismatch fixes will not start the conversion, because nothing would be changed inside the dngs
