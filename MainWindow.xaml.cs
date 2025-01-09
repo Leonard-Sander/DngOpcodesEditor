@@ -88,6 +88,8 @@ namespace DngOpcodesEditor
         void BGGRFix_Unchecked(object sender, RoutedEventArgs e) => ViewModel.BGGRFix = false;
         void GRBGFix_Checked(object sender, RoutedEventArgs e) => ViewModel.GRBGFix = true;
         void GRBGFix_Unchecked(object sender, RoutedEventArgs e) => ViewModel.GRBGFix = false;
+        void GBRGFix_Checked(object sender, RoutedEventArgs e) => ViewModel.GBRGFix = true;
+        void GBRGFix_Unchecked(object sender, RoutedEventArgs e) => ViewModel.GBRGFix = false;
         void DelFiles_Checked(object sender, RoutedEventArgs e) => ViewModel.CleanUp = true;
         void DelFiles_Unchecked(object sender, RoutedEventArgs e) => ViewModel.CleanUp = false;
         /*

@@ -31,7 +31,10 @@ public partial class MainWindowVM : ObservableObject
     public Boolean ClipHighlights = true;
     public Boolean BGGRFix = false;
     public Boolean GRBGFix = false;
+    public Boolean GBRGFix = false;
     public Boolean CleanUp = true;
+    public Boolean ApplyChromaToDng = true;
+    public Boolean applyLumaToTiff = true;
     string SAMPLES_DIR = Path.Combine(Environment.CurrentDirectory, "Samples");
     public MainWindowVM()
     {
@@ -162,216 +165,203 @@ public partial class MainWindowVM : ObservableObject
     {
         var dngValReadProcess = Process.Start(new ProcessStartInfo("dng_validate.exe", $"-max 0 -dng \"{filename + "_valid.dng"}\" \"{filename}\"")
         {
-            RedirectStandardOutput = true,
-            CreateNoWindow = true
+            RedirectStandardOutput = true, CreateNoWindow = true
         });
-        dngValReadProcess.WaitForExit();
+        dngValReadProcess.WaitForExit();    //copy dng for compatability with dcraw
 
         var dcrawProcess = Process.Start(new ProcessStartInfo("dcraw.exe", $"-D -4 -w -T \"{filename + "_valid.dng"}\"")
         {
-            RedirectStandardOutput = true,
-            CreateNoWindow = true
+            RedirectStandardOutput = true, CreateNoWindow = true
         });
-        dcrawProcess.WaitForExit();
-        
-        using (var image = new MagickImage(filename + "_valid.tiff"))
+        dcrawProcess.WaitForExit();     //extract pixel values of dng into intermediate tiff
+
+        using var image = new MagickImage(filename + "_valid.tiff");
+        Console.WriteLine($"Width: {image.Width}, Height: {image.Height}, ColorType: {image.ColorType}, Bitdepth: {image.Depth}, Path: {filename}");
+
+        var maxValueB  = image.GetPixels().GetPixel(0, 0).GetChannel(0);
+        var maxValueG1 = image.GetPixels().GetPixel(1, 0).GetChannel(0);
+        var maxValueG2 = image.GetPixels().GetPixel(0, 1).GetChannel(0);
+        var maxValueR  = image.GetPixels().GetPixel(1, 1).GetChannel(0);
+
+        var imagePixels = image.GetPixels();
+
+        for (int j = 0; j < image.Height / 2; j++)      //find maximum pixel values for BGGR cfa pattern
         {
-            Console.WriteLine($"Width: {image.Width}, Height: {image.Height}, ColorType: {image.ColorType}, Bitdepth: {image.Depth}, Path: {filename}");
+            for (int i = 0; i < image.Width / 2; i++)
+            {
+                if (imagePixels.GetPixel(i * 2, j * 2).GetChannel(0) > maxValueB)
+                {
+                    maxValueB = imagePixels.GetPixel(i * 2, j * 2).GetChannel(0);
+                }
+                if (imagePixels.GetPixel(i * 2 + 1, j * 2).GetChannel(0) > maxValueG1)
+                {
+                    maxValueG1 = imagePixels.GetPixel(i * 2 + 1, j * 2).GetChannel(0);
+                }
+                if (imagePixels.GetPixel(i * 2, j * 2 + 1).GetChannel(0) > maxValueG2)
+                {
+                    maxValueG2 = imagePixels.GetPixel(i * 2, j * 2 + 1).GetChannel(0);
+                }
+                if (imagePixels.GetPixel(i * 2 + 1, j * 2 + 1).GetChannel(0) > maxValueR)
+                {
+                    maxValueR = imagePixels.GetPixel(i * 2 + 1, j * 2 + 1).GetChannel(0);
+                }
+            }      
+        }
 
-            var maxValueB = image.GetPixels().GetPixel(0,0).GetChannel(0);            
-            var maxValueG1 = image.GetPixels().GetPixel(1,0).GetChannel(0);
-            var maxValueG2 = image.GetPixels().GetPixel(0,1).GetChannel(0);
-            var maxValueR = image.GetPixels().GetPixel(1,1).GetChannel(0);
+        Console.WriteLine("maxValueB: " + maxValueB);
+        Console.WriteLine("maxValueG1: " + maxValueG1);
+        Console.WriteLine("maxValueG2: " + maxValueG2);
+        Console.WriteLine("maxValueR: " + maxValueR);
+        maxValueG1 = Math.Max(maxValueG1, maxValueG2);
 
-            var imagePixels = image.GetPixels();
+        /*var gainMapBlue = new OpcodeGainMap() {
+            top = 0, left = 0, ListIndex = 2, bottom = (uint)image.Height, right = (uint)image.Width, plane = 0, planes = 1, rowPitch = 2, colPitch = 2, 
+            mapPointsH = (uint)image.Width/2, mapPointsV = (uint)image.Height/2, mapSpacingH = 0, mapOriginH = 0, mapPlanes = 1, 
+            mapGains = new float[image.Width/2*image.Height/2], header = new OpcodeHeader(),};  
 
+        var gainMapGreen1 = new OpcodeGainMap() {
+            top = 0, left = 1, ListIndex = 2, bottom = (uint)image.Height, right = (uint)image.Width, plane = 0, planes = 1, rowPitch = 2, colPitch = 2, 
+            mapPointsH = (uint)image.Width/2, mapPointsV = (uint)image.Height/2, mapSpacingH = 0, mapOriginH = 0, mapPlanes = 1,
+            mapGains = new float[image.Width/2*image.Height/2], header = new OpcodeHeader(),};  
+
+        var gainMapGreen2 = new OpcodeGainMap() {
+            top = 1, left = 0, ListIndex = 2, bottom = (uint)image.Height, right = (uint)image.Width, plane = 0, planes = 1, rowPitch = 2, colPitch = 2, 
+            mapPointsH = (uint)image.Width/2, mapPointsV = (uint)image.Height/2, mapSpacingH = 0, mapOriginH = 0, mapPlanes = 1,
+            mapGains = new float[image.Width/2*image.Height/2], header = new OpcodeHeader(),};  
+
+        var gainMapRed = new OpcodeGainMap() {
+            top = 1, left = 1, ListIndex = 2, bottom = (uint)image.Height, right = (uint)image.Width, plane = 0, planes = 1, rowPitch = 2, colPitch = 2, 
+            mapPointsH = (uint)image.Width/2, mapPointsV = (uint)image.Height/2, mapSpacingH = 0, mapOriginH = 0, mapPlanes = 1,
+            mapGains = new float[image.Width/2*image.Height/2], header = new OpcodeHeader(),};  
+
+        gainMapBlue.header.id = OpcodeId.GainMap; gainMapGreen1.header.id = OpcodeId.GainMap; gainMapGreen2.header.id = OpcodeId.GainMap; gainMapRed.header.id = OpcodeId.GainMap;
+
+        Opcodes.Add(gainMapBlue); Opcodes.Add(gainMapGreen1); Opcodes.Add(gainMapGreen2); Opcodes.Add(gainMapRed);*/
+
+        var gains = new float[image.Height * image.Width];      // stores correctional gain for every pixel in the frame
+        var lumGains = new float[image.Height * image.Width / 4];   // stores luminance component of gain for every 2x2 pixel in the frame
+
+        for (int j = 0; j < image.Height / 2; j++)
+        {
+            for (int i = 0; i < image.Width / 2; i++)
+            {
+                var minGain = Math.Min(Math.Min((float)maxValueB  / imagePixels.GetPixel(i * 2, j * 2).GetChannel(0),       //minimum gain in 2x2
+                                                (float)maxValueG1 / imagePixels.GetPixel(i * 2 + 1, j * 2).GetChannel(0)),
+                                       Math.Min((float)maxValueG2 / imagePixels.GetPixel(i * 2, j * 2 + 1).GetChannel(0),
+                                                (float)maxValueR  / imagePixels.GetPixel(i * 2 + 1, j * 2 + 1).GetChannel(0)));
+
+                /*gainMapBlue.mapGains[j * image.Width / 2 + i] = (float) maxValueB / image.GetPixels().GetPixel(i*2,j*2).GetChannel(0);
+                gainMapGreen1.mapGains[j * image.Width / 2 + i] = (float) maxValueG1 / image.GetPixels().GetPixel(i*2+1,j*2).GetChannel(0);
+                gainMapGreen2.mapGains[j * image.Width / 2 + i] = (float) maxValueG2 / image.GetPixels().GetPixel(i*2,j*2+1).GetChannel(0);
+                gainMapRed.mapGains[j * image.Width / 2 + i] = (float) maxValueR / image.GetPixels().GetPixel(i*2+1,j*2+1).GetChannel(0);
+
+                var minGain2 = Math.Min(Math.Min(gainMapBlue.mapGains[j * image.Width / 2 + i],
+                                                 gainMapGreen1.mapGains[j * image.Width / 2 + i]),
+                                        Math.Min(gainMapGreen2.mapGains[j * image.Width / 2 + i],
+                                                 gainMapRed.mapGains[j * image.Width / 2 + i]));
+
+                gainMapBlue.mapGains[j * image.Width / 2 + i] = gainMapBlue.mapGains[j * image.Width / 2 + i] / minGain2;
+                gainMapGreen1.mapGains[j * image.Width / 2 + i] = gainMapGreen1.mapGains[j * image.Width / 2 + i] / minGain2;
+                gainMapGreen2.mapGains[j * image.Width / 2 + i] = gainMapGreen2.mapGains[j * image.Width / 2 + i] / minGain2;
+                gainMapRed.mapGains[j * image.Width / 2 + i] = gainMapRed.mapGains[j * image.Width / 2 + i] / minGain2;*/
+
+                gains[i * 2     +  j * 2      * image.Width] = (float)maxValueB  / imagePixels.GetPixel(i * 2    , j * 2    ).GetChannel(0);
+                gains[i * 2 + 1 +  j * 2      * image.Width] = (float)maxValueG1 / imagePixels.GetPixel(i * 2 + 1, j * 2    ).GetChannel(0);
+                gains[i * 2     + (j * 2 + 1) * image.Width] = (float)maxValueG2 / imagePixels.GetPixel(i * 2    , j * 2 + 1).GetChannel(0);
+                gains[i * 2 + 1 + (j * 2 + 1) * image.Width] = (float)maxValueR  / imagePixels.GetPixel(i * 2 + 1, j * 2 + 1).GetChannel(0);
+
+                lumGains[i + j * image.Width / 2] = Math.Min(Math.Min(gains[i * 2     +  j * 2      * image.Width],
+                                                                      gains[i * 2 + 1 +  j * 2      * image.Width]),
+                                                             Math.Min(gains[i * 2     + (j * 2 + 1) * image.Width],
+                                                                      gains[i * 2 + 1 + (j * 2 + 1) * image.Width]));
+
+                if (StripLum)
+                {
+                    gains[i * 2 + j * 2 * image.Width] = gains[i * 2 + j * 2 * image.Width] / lumGains[i + j * image.Width / 2];
+                    gains[i * 2 + 1 + j * 2 * image.Width] = gains[i * 2 + 1 + j * 2 * image.Width] / lumGains[i + j * image.Width / 2];
+                    gains[i * 2 + (j * 2 + 1) * image.Width] = gains[i * 2 + (j * 2 + 1) * image.Width] / lumGains[i + j * image.Width / 2];
+                    gains[i * 2 + 1 + (j * 2 + 1) * image.Width] = gains[i * 2 + 1 + (j * 2 + 1) * image.Width] / lumGains[i + j * image.Width / 2];
+                }
+
+                imagePixels.GetPixel(i * 2, j * 2).SetChannel(0, (ushort)(imagePixels.GetPixel(i * 2, j * 2).GetChannel(0) * minGain));
+                imagePixels.GetPixel(i * 2 + 1, j * 2).SetChannel(0, (ushort)(imagePixels.GetPixel(i * 2 + 1, j * 2).GetChannel(0) * minGain));
+                imagePixels.GetPixel(i * 2, j * 2 + 1).SetChannel(0, (ushort)(imagePixels.GetPixel(i * 2, j * 2 + 1).GetChannel(0) * minGain));
+                imagePixels.GetPixel(i * 2 + 1, j * 2 + 1).SetChannel(0, (ushort)(imagePixels.GetPixel(i * 2 + 1, j * 2 + 1).GetChannel(0) * minGain));
+            }
+        }
+
+        if (!File.Exists(filename + "_chroma.dng"))
+        {
+            image.Write(filename + "_chroma.tiff");
+            File.Copy(filename + "_chroma.tiff", filename + "_chroma.dng");
+            var exifProcess = Process.Start(new ProcessStartInfo(
+                "exiftool.exe",
+                $"-n -IFD0:SubfileType#=0 -overwrite_original -tagsfromfile \"{filename + "_valid.dng"}\" \"-all:all>all:all\" -DNGVersion -DNGBackwardVersion -ColorMatrix1 -ColorMatrix2 \"-IFD0:BlackLevelRepeatDim<SubIFD:BlackLevelRepeatDim\" \"-IFD0:PhotometricInterpretation<SubIFD:PhotometricInterpretation\" \"-IFD0:CalibrationIlluminant1<SubIFD:CalibrationIlluminant1\" \"-IFD0:CalibrationIlluminant2<SubIFD:CalibrationIlluminant2\" -SamplesPerPixel \"-IFD0:CFARepeatPatternDim<SubIFD:CFARepeatPatternDim\" \"-IFD0:CFAPattern2<SubIFD:CFAPattern2\" -AsShotNeutral \"-IFD0:ActiveArea<SubIFD:ActiveArea\" \"-IFD0:DefaultScale<SubIFD:DefaultScale\" \"-IFD0:DefaultCropOrigin<SubIFD:DefaultCropOrigin\" \"-IFD0:DefaultCropSize<SubIFD:DefaultCropSize\" \"-IFD0:OpcodeList1<SubIFD:OpcodeList1\" \"-IFD0:OpcodeList2<SubIFD:OpcodeList2\" \"-IFD0:OpcodeList3<SubIFD:OpcodeList3\"  \"{filename + "_chroma.dng"}\"") //!exposureTag!
+            {
+                RedirectStandardOutput = true, CreateNoWindow = true
+            });
+            exifProcess = Process.Start(new ProcessStartInfo(
+                "exiftool.exe",
+                $"-overwrite_original -tagsfromfile \"{filename + "_valid.dng"}\" \"-IFD0:AnalogBalance\" \"-IFD0:ColorMatrix1\" \"-IFD0:ColorMatrix2\" \"-IFD0:CameraCalibration1\" \"-IFD0:CameraCalibration2\" \"-IFD0:AsShotNeutral\" \"-IFD0:BaselineExposure\" \"-IFD0:CalibrationIlluminant1\" \"-IFD0:CalibrationIlluminant2\" \"-IFD0:ForwardMatrix1\" \"-IFD0:ForwardMatrix2\" \"{filename + "_chroma.dng"}\"")
+            {
+                RedirectStandardOutput = true, CreateNoWindow = true
+            });
+            exifProcess.WaitForExit();
+            var dngValWriteProcess = Process.Start(new ProcessStartInfo("dng_validate.exe", $"-v -dng \"{filename + "_valid.dng"}\" \"{filename + "_chroma.dng"}\"")
+            {
+                RedirectStandardOutput = true,  CreateNoWindow = true
+            });
+            dngValWriteProcess.WaitForExit();
+        }
+
+        if (CleanUp)
+        {
+            File.Delete(filename + "_valid.dng");
+            File.Delete(filename + "_valid.tiff");
+            File.Delete(filename + "_chroma.tiff");
+        }
+
+        else
+        {
             for (int j = 0; j < image.Height / 2; j++)
-            {            
+            {
                 for (int i = 0; i < image.Width / 2; i++)
-                {                    
-                    //Console.Write(image.GetPixels().GetPixel(i,j).GetChannel(0) + ", ");
-                    if (imagePixels.GetPixel(i*2,j*2).GetChannel(0) > maxValueB)
-                    {
-                        maxValueB = imagePixels.GetPixel(i*2,j*2).GetChannel(0);   
-                    } 
-                    if (imagePixels.GetPixel(i*2+1,j*2).GetChannel(0) > maxValueG1)
-                    {
-                        maxValueG1 = imagePixels.GetPixel(i*2+1,j*2).GetChannel(0);   
-                    } 
-                    if (imagePixels.GetPixel(i*2,j*2+1).GetChannel(0) > maxValueG2)
-                    {
-                        maxValueG2 = imagePixels.GetPixel(i*2,j*2+1).GetChannel(0);   
-                    } 
-                    if (imagePixels.GetPixel(i*2+1,j*2+1).GetChannel(0) > maxValueR)
-                    {
-                        maxValueR = imagePixels.GetPixel(i*2+1,j*2+1).GetChannel(0);   
-                    }                     
-                }
-                //Console.WriteLine(maxValueB + ", " + maxValueG1 + ", " + maxValueG2 + ", " + maxValueR);          
-            }
-
-            Console.WriteLine("maxValueB: " + maxValueB);
-            Console.WriteLine("maxValueG1: " + maxValueG1);
-            Console.WriteLine("maxValueG2: " + maxValueG2);
-            Console.WriteLine("maxValueR: " + maxValueR);
-            maxValueG1 = Math.Max(maxValueG1,maxValueG2);
-
-            /*var gainMapBlue = new OpcodeGainMap() {
-                top = 0, left = 0, ListIndex = 2, bottom = (uint)image.Height, right = (uint)image.Width, plane = 0, planes = 1, rowPitch = 2, colPitch = 2, 
-                mapPointsH = (uint)image.Width/2, mapPointsV = (uint)image.Height/2, mapSpacingH = 0, mapOriginH = 0, mapPlanes = 1, 
-                mapGains = new float[image.Width/2*image.Height/2], header = new OpcodeHeader(),};  
-
-            var gainMapGreen1 = new OpcodeGainMap() {
-                top = 0, left = 1, ListIndex = 2, bottom = (uint)image.Height, right = (uint)image.Width, plane = 0, planes = 1, rowPitch = 2, colPitch = 2, 
-                mapPointsH = (uint)image.Width/2, mapPointsV = (uint)image.Height/2, mapSpacingH = 0, mapOriginH = 0, mapPlanes = 1,
-                mapGains = new float[image.Width/2*image.Height/2], header = new OpcodeHeader(),};  
-
-            var gainMapGreen2 = new OpcodeGainMap() {
-                top = 1, left = 0, ListIndex = 2, bottom = (uint)image.Height, right = (uint)image.Width, plane = 0, planes = 1, rowPitch = 2, colPitch = 2, 
-                mapPointsH = (uint)image.Width/2, mapPointsV = (uint)image.Height/2, mapSpacingH = 0, mapOriginH = 0, mapPlanes = 1,
-                mapGains = new float[image.Width/2*image.Height/2], header = new OpcodeHeader(),};  
-
-            var gainMapRed = new OpcodeGainMap() {
-                top = 1, left = 1, ListIndex = 2, bottom = (uint)image.Height, right = (uint)image.Width, plane = 0, planes = 1, rowPitch = 2, colPitch = 2, 
-                mapPointsH = (uint)image.Width/2, mapPointsV = (uint)image.Height/2, mapSpacingH = 0, mapOriginH = 0, mapPlanes = 1,
-                mapGains = new float[image.Width/2*image.Height/2], header = new OpcodeHeader(),};  
-
-            gainMapBlue.header.id = OpcodeId.GainMap;
-            gainMapGreen1.header.id = OpcodeId.GainMap;
-            gainMapGreen2.header.id = OpcodeId.GainMap;
-            gainMapRed.header.id = OpcodeId.GainMap;
-
-            Opcodes.Add(gainMapBlue);
-            Opcodes.Add(gainMapGreen1);
-            Opcodes.Add(gainMapGreen2);
-            Opcodes.Add(gainMapRed);*/
-
-            var gains = new float[image.Height * image.Width];
-            var lumGains = new float[image.Height * image.Width / 4];
-
-            for (int j = 0; j < image.Height / 2; j++)
-            {            
-                for (int i = 0; i < image.Width / 2; i++)
-                {                    
-                    var minGain = Math.Min(Math.Min((float) maxValueB / imagePixels.GetPixel(i*2,j*2).GetChannel(0), 
-                                                    (float) maxValueG1 / imagePixels.GetPixel(i*2+1,j*2).GetChannel(0)),
-                                           Math.Min((float) maxValueG2 / imagePixels.GetPixel(i*2,j*2+1).GetChannel(0), 
-                                                    (float) maxValueR / imagePixels.GetPixel(i*2+1,j*2+1).GetChannel(0)));
-
-                    /*gainMapBlue.mapGains[j * image.Width / 2 + i] = (float) maxValueB / image.GetPixels().GetPixel(i*2,j*2).GetChannel(0);
-                    gainMapGreen1.mapGains[j * image.Width / 2 + i] = (float) maxValueG1 / image.GetPixels().GetPixel(i*2+1,j*2).GetChannel(0);
-                    gainMapGreen2.mapGains[j * image.Width / 2 + i] = (float) maxValueG2 / image.GetPixels().GetPixel(i*2,j*2+1).GetChannel(0);
-                    gainMapRed.mapGains[j * image.Width / 2 + i] = (float) maxValueR / image.GetPixels().GetPixel(i*2+1,j*2+1).GetChannel(0);
-
-                    var minGain2 = Math.Min(Math.Min(gainMapBlue.mapGains[j * image.Width / 2 + i],
-                                                     gainMapGreen1.mapGains[j * image.Width / 2 + i]),
-                                            Math.Min(gainMapGreen2.mapGains[j * image.Width / 2 + i],
-                                                     gainMapRed.mapGains[j * image.Width / 2 + i]));
-
-                    gainMapBlue.mapGains[j * image.Width / 2 + i] = gainMapBlue.mapGains[j * image.Width / 2 + i] / minGain2;
-                    gainMapGreen1.mapGains[j * image.Width / 2 + i] = gainMapGreen1.mapGains[j * image.Width / 2 + i] / minGain2;
-                    gainMapGreen2.mapGains[j * image.Width / 2 + i] = gainMapGreen2.mapGains[j * image.Width / 2 + i] / minGain2;
-                    gainMapRed.mapGains[j * image.Width / 2 + i] = gainMapRed.mapGains[j * image.Width / 2 + i] / minGain2;*/
-                    
-                    gains[i*2     + j*2     * image.Width] = (float) maxValueB / imagePixels.GetPixel(i*2,j*2).GetChannel(0);
-                    gains[i*2+1   + j*2     * image.Width] = (float) maxValueG1 / imagePixels.GetPixel(i*2+1,j*2).GetChannel(0);
-                    gains[i*2     + (j*2+1) * image.Width] = (float) maxValueG2 / imagePixels.GetPixel(i*2,j*2+1).GetChannel(0);
-                    gains[i*2+1   + (j*2+1) * image.Width] = (float) maxValueR / imagePixels.GetPixel(i*2+1,j*2+1).GetChannel(0);
-
-                    lumGains[i + j * image.Width / 2] = Math.Min(Math.Min(gains[i*2     + j*2     * image.Width],
-                                                                          gains[i*2+1   + j*2     * image.Width]),
-                                                                 Math.Min(gains[i*2     + (j*2+1) * image.Width],
-                                                                          gains[i*2+1   + (j*2+1) * image.Width]));
-
-                    if(StripLum)
-                    {
-                        gains[i*2     + j*2     * image.Width] = gains[i*2     + j*2     * image.Width] / lumGains[i + j * image.Width / 2];
-                        gains[i*2+1   + j*2     * image.Width] = gains[i*2+1   + j*2     * image.Width] / lumGains[i + j * image.Width / 2];
-                        gains[i*2     + (j*2+1) * image.Width] = gains[i*2     + (j*2+1) * image.Width] / lumGains[i + j * image.Width / 2];
-                        gains[i*2+1   + (j*2+1) * image.Width] = gains[i*2+1   + (j*2+1) * image.Width] / lumGains[i + j * image.Width / 2];
-                    }                    
-                    
-                    imagePixels.GetPixel(i*2,j*2).SetChannel(0,     (ushort)(imagePixels.GetPixel(i * 2, j * 2).GetChannel(0) * minGain));                    
-                    imagePixels.GetPixel(i*2+1,j*2).SetChannel(0,   (ushort)(imagePixels.GetPixel(i * 2 + 1, j * 2).GetChannel(0) * minGain));
-                    imagePixels.GetPixel(i*2,j*2+1).SetChannel(0,   (ushort)(imagePixels.GetPixel(i * 2, j * 2 + 1).GetChannel(0) * minGain));
-                    imagePixels.GetPixel(i*2+1,j*2+1).SetChannel(0, (ushort)(imagePixels.GetPixel(i * 2 + 1, j * 2 + 1).GetChannel(0) * minGain));
+                {
+                    imagePixels.GetPixel(i * 2, j * 2).SetChannel(0, (ushort)(maxValueB / lumGains[i + j * image.Width / 2]));
+                    imagePixels.GetPixel(i * 2 + 1, j * 2).SetChannel(0, (ushort)(maxValueG1 / lumGains[i + j * image.Width / 2]));
+                    imagePixels.GetPixel(i * 2, j * 2 + 1).SetChannel(0, (ushort)(maxValueG2 / lumGains[i + j * image.Width / 2]));
+                    imagePixels.GetPixel(i * 2 + 1, j * 2 + 1).SetChannel(0, (ushort)(maxValueR / lumGains[i + j * image.Width / 2]));
                 }
             }
 
-            if(!File.Exists(filename + "_chroma.dng"))
-            {
-                image.Write(filename + "_chroma.tiff");
-                File.Copy(filename + "_chroma.tiff", filename + "_chroma.dng");
-                var exifProcess = Process.Start(new ProcessStartInfo(
-                    "exiftool.exe", 
-                    $"-n -IFD0:SubfileType#=0 -overwrite_original -tagsfromfile \"{filename + "_valid.dng"}\" \"-all:all>all:all\" -DNGVersion -DNGBackwardVersion -ColorMatrix1 -ColorMatrix2 \"-IFD0:BlackLevelRepeatDim<SubIFD:BlackLevelRepeatDim\" \"-IFD0:PhotometricInterpretation<SubIFD:PhotometricInterpretation\" \"-IFD0:CalibrationIlluminant1<SubIFD:CalibrationIlluminant1\" \"-IFD0:CalibrationIlluminant2<SubIFD:CalibrationIlluminant2\" -SamplesPerPixel \"-IFD0:CFARepeatPatternDim<SubIFD:CFARepeatPatternDim\" \"-IFD0:CFAPattern2<SubIFD:CFAPattern2\" -AsShotNeutral \"-IFD0:ActiveArea<SubIFD:ActiveArea\" \"-IFD0:DefaultScale<SubIFD:DefaultScale\" \"-IFD0:DefaultCropOrigin<SubIFD:DefaultCropOrigin\" \"-IFD0:DefaultCropSize<SubIFD:DefaultCropSize\" \"-IFD0:OpcodeList1<SubIFD:OpcodeList1\" \"-IFD0:OpcodeList2<SubIFD:OpcodeList2\" \"-IFD0:OpcodeList3<SubIFD:OpcodeList3\"  \"{filename + "_chroma.dng"}\"") //!exposureTag!
-                {
-                    RedirectStandardOutput = true,
-                    CreateNoWindow = true
-                });
-                exifProcess = Process.Start(new ProcessStartInfo(
-                    "exiftool.exe", 
-                    $"-overwrite_original -tagsfromfile \"{filename + "_valid.dng"}\" \"-IFD0:AnalogBalance\" \"-IFD0:ColorMatrix1\" \"-IFD0:ColorMatrix2\" \"-IFD0:CameraCalibration1\" \"-IFD0:CameraCalibration2\" \"-IFD0:AsShotNeutral\" \"-IFD0:BaselineExposure\" \"-IFD0:CalibrationIlluminant1\" \"-IFD0:CalibrationIlluminant2\" \"-IFD0:ForwardMatrix1\" \"-IFD0:ForwardMatrix2\" \"{filename + "_chroma.dng"}\"")
-                {
-                    RedirectStandardOutput = true,
-                    CreateNoWindow = true
-                });
-                exifProcess.WaitForExit();
-                var dngValWriteProcess = Process.Start(new ProcessStartInfo("dng_validate.exe", $"-v -dng \"{filename + "_valid.dng"}\" \"{filename + "_chroma.dng"}\"")
-                {
-                    RedirectStandardOutput = true,
-                    CreateNoWindow = true
-                });
-                dngValWriteProcess.WaitForExit();
-            }          
+            image.Write(filename + "_luma.tiff");            
+            File.Copy(filename + "_luma.tiff", filename + "_luma.dng");
 
-            if(CleanUp)
+            var exifProcess = Process.Start(new ProcessStartInfo(
+                "exiftool.exe",
+                $"-n -IFD0:SubfileType#=0 -overwrite_original -tagsfromfile \"{filename + "_valid.dng"}\" \"-all:all>all:all\" -DNGVersion -DNGBackwardVersion -ColorMatrix1 -ColorMatrix2 \"-IFD0:BlackLevelRepeatDim<SubIFD:BlackLevelRepeatDim\" \"-IFD0:PhotometricInterpretation<SubIFD:PhotometricInterpretation\" \"-IFD0:CalibrationIlluminant1<SubIFD:CalibrationIlluminant1\" \"-IFD0:CalibrationIlluminant2<SubIFD:CalibrationIlluminant2\" -SamplesPerPixel \"-IFD0:CFARepeatPatternDim<SubIFD:CFARepeatPatternDim\" \"-IFD0:CFAPattern2<SubIFD:CFAPattern2\" -AsShotNeutral \"-IFD0:ActiveArea<SubIFD:ActiveArea\" \"-IFD0:DefaultScale<SubIFD:DefaultScale\" \"-IFD0:DefaultCropOrigin<SubIFD:DefaultCropOrigin\" \"-IFD0:DefaultCropSize<SubIFD:DefaultCropSize\" \"-IFD0:OpcodeList1<SubIFD:OpcodeList1\" \"-IFD0:OpcodeList2<SubIFD:OpcodeList2\" \"-IFD0:OpcodeList3<SubIFD:OpcodeList3\"  \"{filename + "_luma.dng"}\"") //!exposureTag!
             {
-                File.Delete(filename + "_valid.dng"); 
-                File.Delete(filename + "_valid.tiff"); 
-                File.Delete(filename + "_chroma.tiff");
-            }
-            else
+                RedirectStandardOutput = true, CreateNoWindow = true
+            });
+            exifProcess.WaitForExit();
+
+            exifProcess = Process.Start(new ProcessStartInfo(
+                "exiftool.exe",
+                $"-overwrite_original -tagsfromfile \"{filename + "_valid.dng"}\" \"-IFD0:AnalogBalance\" \"-IFD0:ColorMatrix1\" \"-IFD0:ColorMatrix2\" \"-IFD0:CameraCalibration1\" \"-IFD0:CameraCalibration2\" \"-IFD0:AsShotNeutral\" \"-IFD0:BaselineExposure\" \"-IFD0:CalibrationIlluminant1\" \"-IFD0:CalibrationIlluminant2\" \"-IFD0:ForwardMatrix1\" \"-IFD0:ForwardMatrix2\" \"{filename + "_luma.dng"}\"")
             {
-                for (int j = 0; j < image.Height / 2; j++)
-                {            
-                    for (int i = 0; i < image.Width / 2; i++)
-                    {                    
-                        imagePixels.GetPixel(i*2,j*2).SetChannel(0,     (ushort)(maxValueB / lumGains[i + j * image.Width / 2]));                    
-                        imagePixels.GetPixel(i*2+1,j*2).SetChannel(0,   (ushort)(maxValueG1 / lumGains[i + j * image.Width / 2]));
-                        imagePixels.GetPixel(i*2,j*2+1).SetChannel(0,   (ushort)(maxValueG2 / lumGains[i + j * image.Width / 2]));
-                        imagePixels.GetPixel(i*2+1,j*2+1).SetChannel(0, (ushort)(maxValueR / lumGains[i + j * image.Width / 2]));
-                        //Console.WriteLine(lumGains[i + j * image.Width / 2]);
-                    }
-                }
+                RedirectStandardOutput = true, CreateNoWindow = true
+            });
+            exifProcess.WaitForExit();
 
-                image.Write(filename + "_luma.tiff");
-                File.Copy(filename + "_luma.tiff", filename + "_luma.dng");
-                var exifProcess = Process.Start(new ProcessStartInfo(
-                    "exiftool.exe", 
-                    $"-n -IFD0:SubfileType#=0 -overwrite_original -tagsfromfile \"{filename + "_valid.dng"}\" \"-all:all>all:all\" -DNGVersion -DNGBackwardVersion -ColorMatrix1 -ColorMatrix2 \"-IFD0:BlackLevelRepeatDim<SubIFD:BlackLevelRepeatDim\" \"-IFD0:PhotometricInterpretation<SubIFD:PhotometricInterpretation\" \"-IFD0:CalibrationIlluminant1<SubIFD:CalibrationIlluminant1\" \"-IFD0:CalibrationIlluminant2<SubIFD:CalibrationIlluminant2\" -SamplesPerPixel \"-IFD0:CFARepeatPatternDim<SubIFD:CFARepeatPatternDim\" \"-IFD0:CFAPattern2<SubIFD:CFAPattern2\" -AsShotNeutral \"-IFD0:ActiveArea<SubIFD:ActiveArea\" \"-IFD0:DefaultScale<SubIFD:DefaultScale\" \"-IFD0:DefaultCropOrigin<SubIFD:DefaultCropOrigin\" \"-IFD0:DefaultCropSize<SubIFD:DefaultCropSize\" \"-IFD0:OpcodeList1<SubIFD:OpcodeList1\" \"-IFD0:OpcodeList2<SubIFD:OpcodeList2\" \"-IFD0:OpcodeList3<SubIFD:OpcodeList3\"  \"{filename + "_luma.dng"}\"") //!exposureTag!
-                {
-                    RedirectStandardOutput = true,
-                    CreateNoWindow = true
-                });
-                exifProcess.WaitForExit();
-                exifProcess = Process.Start(new ProcessStartInfo(
-                    "exiftool.exe", 
-                    $"-overwrite_original -tagsfromfile \"{filename + "_valid.dng"}\" \"-IFD0:AnalogBalance\" \"-IFD0:ColorMatrix1\" \"-IFD0:ColorMatrix2\" \"-IFD0:CameraCalibration1\" \"-IFD0:CameraCalibration2\" \"-IFD0:AsShotNeutral\" \"-IFD0:BaselineExposure\" \"-IFD0:CalibrationIlluminant1\" \"-IFD0:CalibrationIlluminant2\" \"-IFD0:ForwardMatrix1\" \"-IFD0:ForwardMatrix2\" \"{filename + "_luma.dng"}\"")
-                {
-                    RedirectStandardOutput = true,
-                    CreateNoWindow = true
-                });
-                exifProcess.WaitForExit();
-                var dngValWriteProcess = Process.Start(new ProcessStartInfo("dng_validate.exe", $"-v -dng \"{filename + "_valid.dng"}\" \"{filename + "_luma.dng"}\"")
-                {
-                    UseShellExecute = true,
-                    CreateNoWindow = false
-                });
-                dngValWriteProcess.WaitForExit();
-            }
-                        
+            var dngValWriteProcess = Process.Start(new ProcessStartInfo("dng_validate.exe", $"-v -dng \"{filename + "_valid.dng"}\" \"{filename + "_luma.dng"}\"")
+            {
+                UseShellExecute = true, CreateNoWindow = false
+            });
+            dngValWriteProcess.WaitForExit();
+        }
 
+        if (ApplyChromaToDng)
+        {
             var dialog = new OpenFileDialog() { Multiselect = true, Filter = "DNG files (*.dng)|*.dng|All files (*.*)|*.*" };
             if (dialog.ShowDialog() == true)
             {
@@ -390,108 +380,157 @@ public partial class MainWindowVM : ObservableObject
                         CreateNoWindow = true
                     });
                     dcrawProcess.WaitForExit();
-                    
-                    using (var output = new MagickImage(fileName + "_valid.tiff"))
+
+                    using var output = new MagickImage(fileName + "_valid.tiff");
+
+                    var outputPixels = output.GetPixels();
+                    var maxValue = 0f;
+
+                    if (!ClipHighlights)
                     {
-                        var outputPixels = output.GetPixels();
-                        var maxValue = 0f;
-
-                        if(!ClipHighlights)
+                        for (int j = 0; j < image.Height / 2; j++)
                         {
-                            for (int j = 0; j < image.Height / 2; j++)
-                            {            
-                                for (int i = 0; i < image.Width / 2; i++)
-                                {                    
-                                    var localMaxValue = Math.Max(Math.Max(outputPixels.GetPixel(i*2, j*2).GetChannel(0) *    gains[i*2     + j*2     * image.Width],
-                                                                        outputPixels.GetPixel(i*2+1, j*2).GetChannel(0) *  gains[i*2+1   + j*2     * image.Width]),
-                                                                Math.Max(outputPixels.GetPixel(i*2, j*2+1).GetChannel(0) *  gains[i*2     + (j*2+1) * image.Width],
-                                                                        outputPixels.GetPixel(i*2+1, j*2+1).GetChannel(0) *gains[i*2+1   + (j*2+1) * image.Width]));
-                                    if (maxValue < localMaxValue) 
-                                    {
-                                        maxValue = localMaxValue;
-                                    }                       
-                                }
-                            }
-                        }
-                        
-                        if (ClipHighlights || maxValue <= 65535)
-                        {
-                            for (int j = 0; j < image.Height / 2; j++)
-                            {            
-                                for (int i = 0; i < image.Width / 2; i++)
-                                {                    
-                                    outputPixels.GetPixel(i*2,   j*2  ).SetChannel(0, (ushort) Math.Min(65535,outputPixels.GetPixel(i*2,   j*2  ).GetChannel(0) * gains[i*2   + j*2     * image.Width]));
-                                    outputPixels.GetPixel(i*2+1, j*2  ).SetChannel(0, (ushort) Math.Min(65535,outputPixels.GetPixel(i*2+1, j*2  ).GetChannel(0) * gains[i*2+1 + j*2     * image.Width]));
-                                    outputPixels.GetPixel(i*2,   j*2+1).SetChannel(0, (ushort) Math.Min(65535,outputPixels.GetPixel(i*2,   j*2+1).GetChannel(0) * gains[i*2   + (j*2+1) * image.Width]));
-                                    outputPixels.GetPixel(i*2+1, j*2+1).SetChannel(0, (ushort) Math.Min(65535,outputPixels.GetPixel(i*2+1, j*2+1).GetChannel(0) * gains[i*2+1 + (j*2+1) * image.Width]));                            
-                                }
-                            }
-                            output.Write(fileName + "_65535.tiff");
-                            Console.WriteLine("Written " + fileName + " with Whitelevel 65535");
-                        }
-                        else    //unreachable so far
-                        {
-                            for (int j = 0; j < image.Height / 2; j++)
-                            {            
-                                for (int i = 0; i < image.Width / 2; i++)
-                                {                    
-                                    outputPixels.GetPixel(i*2,j*2).SetChannel(0,    (ushort)(outputPixels.GetPixel(i*2, j*2).GetChannel(0) *    gains[i*2     + j*2     * image.Width] / maxValue * 65535));
-                                    outputPixels.GetPixel(i*2+1,j*2).SetChannel(0,  (ushort)(outputPixels.GetPixel(i*2+1, j*2).GetChannel(0) *  gains[i*2+1   + j*2     * image.Width] / maxValue * 65535));
-                                    outputPixels.GetPixel(i*2,j*2+1).SetChannel(0,  (ushort)(outputPixels.GetPixel(i*2, j*2+1).GetChannel(0) *  gains[i*2     + (j*2+1) * image.Width] / maxValue * 65535));
-                                    outputPixels.GetPixel(i*2+1,j*2+1).SetChannel(0,(ushort)(outputPixels.GetPixel(i*2+1, j*2+1).GetChannel(0) *gains[i*2+1   + (j*2+1) * image.Width] / maxValue * 65535));                            
-                                }
-                            }
-                            output.Write(fileName + "_" + (ushort)(65535 * (65535 / maxValue)) + ".tiff");
-                            Console.WriteLine("Written " + fileName + " with Whitelevel " + (ushort)(65535 * (65535 / maxValue)));
-                        }
-                        File.Copy(fileName + "_65535.tiff", fileName + "_65535.dng");
-                        var exifProcess = Process.Start(new ProcessStartInfo(
-                            "exiftool.exe", 
-                            $"-n -IFD0:SubfileType#=0 -overwrite_original -tagsfromfile \"{fileName + "_valid.dng"}\" \"-all:all>all:all\" -DNGVersion -DNGBackwardVersion -ColorMatrix1 -ColorMatrix2 \"-IFD0:BlackLevelRepeatDim<SubIFD:BlackLevelRepeatDim\" \"-IFD0:PhotometricInterpretation<SubIFD:PhotometricInterpretation\" \"-IFD0:CalibrationIlluminant1<SubIFD:CalibrationIlluminant1\" \"-IFD0:CalibrationIlluminant2<SubIFD:CalibrationIlluminant2\" -SamplesPerPixel \"-IFD0:CFARepeatPatternDim<SubIFD:CFARepeatPatternDim\" \"-IFD0:CFAPattern2<SubIFD:CFAPattern2\" -AsShotNeutral \"-IFD0:ActiveArea<SubIFD:ActiveArea\" \"-IFD0:DefaultScale<SubIFD:DefaultScale\" \"-IFD0:DefaultCropOrigin<SubIFD:DefaultCropOrigin\" \"-IFD0:DefaultCropSize<SubIFD:DefaultCropSize\" \"-IFD0:OpcodeList1<SubIFD:OpcodeList1\" \"-IFD0:OpcodeList2<SubIFD:OpcodeList2\" \"-IFD0:OpcodeList3<SubIFD:OpcodeList3\"  \"{fileName + "_65535.dng"}\"") //!exposureTag!
-                        {
-                            RedirectStandardOutput = true,
-                            CreateNoWindow = true
-                        });
-                        exifProcess.WaitForExit();
-                        exifProcess = Process.Start(new ProcessStartInfo(
-                            "exiftool.exe", 
-                            $"-overwrite_original -tagsfromfile \"{fileName + "_valid.dng"}\" \"-IFD0:AnalogBalance\" \"-IFD0:ColorMatrix1\" \"-IFD0:ColorMatrix2\" \"-IFD0:CameraCalibration1\" \"-IFD0:CameraCalibration2\" \"-IFD0:AsShotNeutral\" \"-IFD0:BaselineExposure\" \"-IFD0:CalibrationIlluminant1\" \"-IFD0:CalibrationIlluminant2\" \"-IFD0:ForwardMatrix1\" \"-IFD0:ForwardMatrix2\" \"{fileName + "_65535.dng"}\"")
-                        {
-                            RedirectStandardOutput = true,
-                            CreateNoWindow = true
-                        });
-                        exifProcess.WaitForExit();
-                        var dngValWriteProcess = Process.Start(new ProcessStartInfo("dng_validate.exe", $"-v -dng \"{fileName + "_valid.dng"}\" \"{fileName + "_65535.dng"}\"")
-                        {
-                            UseShellExecute = true,
-                            CreateNoWindow = false
-                        });
-                        dngValWriteProcess.WaitForExit();
-
-                        if(CleanUp)
-                        {
-                            File.Delete(fileName + "_valid.dng"); 
-                            File.Delete(fileName + "_valid.tiff"); 
-                            File.Delete(fileName + "_65535.tiff");
-                            /*var directory = fileName;
-                            for (int i = directory.Length - 1; i > -1; i--)
+                            for (int i = 0; i < image.Width / 2; i++)
                             {
-                                directory = directory.Remove(directory.Length - 1);                                
-                                if(directory.Last().ToString() == "\\")
-                                {                                    
-                                    File.Move(fileName, directory + "\\original" ); 
+                                var localMaxValue = Math.Max(Math.Max(outputPixels.GetPixel(i * 2, j * 2).GetChannel(0) * gains[i * 2 + j * 2 * image.Width],
+                                                                    outputPixels.GetPixel(i * 2 + 1, j * 2).GetChannel(0) * gains[i * 2 + 1 + j * 2 * image.Width]),
+                                                            Math.Max(outputPixels.GetPixel(i * 2, j * 2 + 1).GetChannel(0) * gains[i * 2 + (j * 2 + 1) * image.Width],
+                                                                    outputPixels.GetPixel(i * 2 + 1, j * 2 + 1).GetChannel(0) * gains[i * 2 + 1 + (j * 2 + 1) * image.Width]));
+                                if (maxValue < localMaxValue)
+                                {
+                                    maxValue = localMaxValue;
                                 }
-                            }      */ 
-                            File.Copy(fileName, fileName + ".dng_original");   
-                            File.Delete(fileName);
-                            File.Copy(fileName + "_65535.dng", fileName);   
-                            File.Delete(fileName + "_65535.dng");      
+                            }
                         }
                     }
+
+                    if (ClipHighlights || maxValue <= 65535)
+                    {
+                        for (int j = 0; j < image.Height / 2; j++)
+                        {
+                            for (int i = 0; i < image.Width / 2; i++)
+                            {
+                                outputPixels.GetPixel(i * 2, j * 2).SetChannel(0, (ushort)Math.Min(65535, outputPixels.GetPixel(i * 2, j * 2).GetChannel(0) * gains[i * 2 + j * 2 * image.Width]));
+                                outputPixels.GetPixel(i * 2 + 1, j * 2).SetChannel(0, (ushort)Math.Min(65535, outputPixels.GetPixel(i * 2 + 1, j * 2).GetChannel(0) * gains[i * 2 + 1 + j * 2 * image.Width]));
+                                outputPixels.GetPixel(i * 2, j * 2 + 1).SetChannel(0, (ushort)Math.Min(65535, outputPixels.GetPixel(i * 2, j * 2 + 1).GetChannel(0) * gains[i * 2 + (j * 2 + 1) * image.Width]));
+                                outputPixels.GetPixel(i * 2 + 1, j * 2 + 1).SetChannel(0, (ushort)Math.Min(65535, outputPixels.GetPixel(i * 2 + 1, j * 2 + 1).GetChannel(0) * gains[i * 2 + 1 + (j * 2 + 1) * image.Width]));
+                            }
+                        }
+                        output.Write(fileName + "_65535.tiff");
+                        Console.WriteLine("Written " + fileName + " with Whitelevel 65535");
+                    }
+                    else    //unreachable so far
+                    {
+                        for (int j = 0; j < image.Height / 2; j++)
+                        {
+                            for (int i = 0; i < image.Width / 2; i++)
+                            {
+                                outputPixels.GetPixel(i * 2, j * 2).SetChannel(0, (ushort)(outputPixels.GetPixel(i * 2, j * 2).GetChannel(0) * gains[i * 2 + j * 2 * image.Width] / maxValue * 65535));
+                                outputPixels.GetPixel(i * 2 + 1, j * 2).SetChannel(0, (ushort)(outputPixels.GetPixel(i * 2 + 1, j * 2).GetChannel(0) * gains[i * 2 + 1 + j * 2 * image.Width] / maxValue * 65535));
+                                outputPixels.GetPixel(i * 2, j * 2 + 1).SetChannel(0, (ushort)(outputPixels.GetPixel(i * 2, j * 2 + 1).GetChannel(0) * gains[i * 2 + (j * 2 + 1) * image.Width] / maxValue * 65535));
+                                outputPixels.GetPixel(i * 2 + 1, j * 2 + 1).SetChannel(0, (ushort)(outputPixels.GetPixel(i * 2 + 1, j * 2 + 1).GetChannel(0) * gains[i * 2 + 1 + (j * 2 + 1) * image.Width] / maxValue * 65535));
+                            }
+                        }
+                        output.Write(fileName + "_" + (ushort)(65535 * (65535 / maxValue)) + ".tiff");
+                        Console.WriteLine("Written " + fileName + " with Whitelevel " + (ushort)(65535 * (65535 / maxValue)));
+                    }
+                    File.Copy(fileName + "_65535.tiff", fileName + "_65535.dng");
+                    var exifProcess = Process.Start(new ProcessStartInfo(
+                        "exiftool.exe",
+                        $"-n -IFD0:SubfileType#=0 -overwrite_original -tagsfromfile \"{fileName + "_valid.dng"}\" \"-all:all>all:all\" -DNGVersion -DNGBackwardVersion -ColorMatrix1 -ColorMatrix2 \"-IFD0:BlackLevelRepeatDim<SubIFD:BlackLevelRepeatDim\" \"-IFD0:PhotometricInterpretation<SubIFD:PhotometricInterpretation\" \"-IFD0:CalibrationIlluminant1<SubIFD:CalibrationIlluminant1\" \"-IFD0:CalibrationIlluminant2<SubIFD:CalibrationIlluminant2\" -SamplesPerPixel \"-IFD0:CFARepeatPatternDim<SubIFD:CFARepeatPatternDim\" \"-IFD0:CFAPattern2<SubIFD:CFAPattern2\" -AsShotNeutral \"-IFD0:ActiveArea<SubIFD:ActiveArea\" \"-IFD0:DefaultScale<SubIFD:DefaultScale\" \"-IFD0:DefaultCropOrigin<SubIFD:DefaultCropOrigin\" \"-IFD0:DefaultCropSize<SubIFD:DefaultCropSize\" \"-IFD0:OpcodeList1<SubIFD:OpcodeList1\" \"-IFD0:OpcodeList2<SubIFD:OpcodeList2\" \"-IFD0:OpcodeList3<SubIFD:OpcodeList3\"  \"{fileName + "_65535.dng"}\"") //!exposureTag!
+                    {
+                        RedirectStandardOutput = true,
+                        CreateNoWindow = true
+                    });
+                    exifProcess.WaitForExit();
+                    exifProcess = Process.Start(new ProcessStartInfo(
+                        "exiftool.exe",
+                        $"-overwrite_original -tagsfromfile \"{fileName + "_valid.dng"}\" \"-IFD0:AnalogBalance\" \"-IFD0:ColorMatrix1\" \"-IFD0:ColorMatrix2\" \"-IFD0:CameraCalibration1\" \"-IFD0:CameraCalibration2\" \"-IFD0:AsShotNeutral\" \"-IFD0:BaselineExposure\" \"-IFD0:CalibrationIlluminant1\" \"-IFD0:CalibrationIlluminant2\" \"-IFD0:ForwardMatrix1\" \"-IFD0:ForwardMatrix2\" \"{fileName + "_65535.dng"}\"")
+                    {
+                        RedirectStandardOutput = true,
+                        CreateNoWindow = true
+                    });
+                    exifProcess.WaitForExit();
+                    var dngValWriteProcess = Process.Start(new ProcessStartInfo("dng_validate.exe", $"-v -dng \"{fileName + "_valid.dng"}\" \"{fileName + "_65535.dng"}\"")
+                    {
+                        UseShellExecute = true,
+                        CreateNoWindow = false
+                    });
+                    dngValWriteProcess.WaitForExit();
+
+                    if (CleanUp)
+                    {
+                        File.Delete(fileName + "_valid.dng");
+                        File.Delete(fileName + "_valid.tiff");
+                        File.Delete(fileName + "_65535.tiff");
+                        /*var directory = fileName;
+                        for (int i = directory.Length - 1; i > -1; i--)
+                        {
+                            directory = directory.Remove(directory.Length - 1);                                
+                            if(directory.Last().ToString() == "\\")
+                            {                                    
+                                File.Move(fileName, directory + "\\original" ); 
+                            }
+                        }      */
+                        File.Copy(fileName, fileName + ".dng_original");
+                        File.Delete(fileName);
+                        File.Copy(fileName + "_65535.dng", fileName);
+                        File.Delete(fileName + "_65535.dng");
+                    }
                 }
-            }    
+            } 
+        }
+
+        if (applyLumaToTiff && StripLum)
+        {
+            var dialog = new OpenFileDialog() { Multiselect = true, Filter = "TIFF files (*.tiff;*.tif)|*.tiff;*.tif|All files (*.*)|*.*" };
+            if (dialog.ShowDialog() == true)
+            {
+                foreach (var fileName in dialog.FileNames)
+                {
+                    using var output = new MagickImage(fileName);
+                    //output.ColorSpace = ColorSpace.RGB;
+                    output.SetProfile(new ColorProfile(@"C:\Program Files\RawTherapee\5.11\iccprofiles\output\RTv2_ACES-AP0_Linear_g=1.0.icc"));
+                    Console.WriteLine(output.Gamma);
+                    //output.GammaCorrect(1 / 2.2f);
+                    Console.WriteLine(output.Gamma);
+                    Console.WriteLine(output.GetPixels().Channels);
+                    var outputPixels = output.GetPixels();
+
+                    for (int j = 0; j < image.Height / 2; j++)
+                    {
+                        for (int i = 0; i < image.Width / 2; i++)
+                        {
+                            /*for (int k = 0; k < 3; k++)
+                            {
+                                outputPixels.GetPixel(i * 2, j * 2).SetChannel((uint)k, (ushort)Math.Min(65535, outputPixels.GetPixel(i * 2, j * 2).GetChannel(0) * lumGains[i + j * image.Width / 2]));
+                                outputPixels.GetPixel(i * 2 + 1, j * 2).SetChannel((uint)k, (ushort)Math.Min(65535, outputPixels.GetPixel(i * 2 + 1, j * 2).GetChannel(0) * lumGains[i + j * image.Width / 2]));
+                                outputPixels.GetPixel(i * 2, j * 2 + 1).SetChannel((uint)k, (ushort)Math.Min(65535, outputPixels.GetPixel(i * 2, j * 2 + 1).GetChannel(0) * lumGains[i + j * image.Width / 2]));
+                                outputPixels.GetPixel(i * 2 + 1, j * 2 + 1).SetChannel((uint)k, (ushort)Math.Min(65535, outputPixels.GetPixel(i * 2 + 1, j * 2 + 1).GetChannel(0) * lumGains[i + j * image.Width / 2]));
+                            }*/
+                            outputPixels.GetPixel(i*2,   j*2  ).SetChannel(0, (ushort) Math.Min(65535,outputPixels.GetPixel(i*2,   j*2  ).GetChannel(0) * lumGains[i + j * image.Width / 2]));
+                            outputPixels.GetPixel(i*2,   j*2  ).SetChannel(1, (ushort) Math.Min(65535,outputPixels.GetPixel(i*2,   j*2  ).GetChannel(1) * lumGains[i + j * image.Width / 2]));
+                            outputPixels.GetPixel(i*2,   j*2  ).SetChannel(2, (ushort) Math.Min(65535,outputPixels.GetPixel(i*2,   j*2  ).GetChannel(2) * lumGains[i + j * image.Width / 2]));
+                            outputPixels.GetPixel(i*2+1, j*2  ).SetChannel(0, (ushort) Math.Min(65535,outputPixels.GetPixel(i*2+1, j*2  ).GetChannel(0) * lumGains[i + j * image.Width / 2]));
+                            outputPixels.GetPixel(i*2+1, j*2  ).SetChannel(1, (ushort) Math.Min(65535,outputPixels.GetPixel(i*2+1, j*2  ).GetChannel(1) * lumGains[i + j * image.Width / 2]));
+                            outputPixels.GetPixel(i*2+1, j*2  ).SetChannel(2, (ushort) Math.Min(65535,outputPixels.GetPixel(i*2+1, j*2  ).GetChannel(2) * lumGains[i + j * image.Width / 2]));
+                            outputPixels.GetPixel(i*2,   j*2+1).SetChannel(0, (ushort) Math.Min(65535,outputPixels.GetPixel(i*2,   j*2+1).GetChannel(0) * lumGains[i + j * image.Width / 2]));
+                            outputPixels.GetPixel(i*2,   j*2+1).SetChannel(1, (ushort) Math.Min(65535,outputPixels.GetPixel(i*2,   j*2+1).GetChannel(1) * lumGains[i + j * image.Width / 2]));
+                            outputPixels.GetPixel(i*2,   j*2+1).SetChannel(2, (ushort) Math.Min(65535,outputPixels.GetPixel(i*2,   j*2+1).GetChannel(2) * lumGains[i + j * image.Width / 2]));
+                            outputPixels.GetPixel(i*2+1, j*2+1).SetChannel(0, (ushort) Math.Min(65535,outputPixels.GetPixel(i*2+1, j*2+1).GetChannel(0) * lumGains[i + j * image.Width / 2])); 
+                            outputPixels.GetPixel(i*2+1, j*2+1).SetChannel(1, (ushort) Math.Min(65535,outputPixels.GetPixel(i*2+1, j*2+1).GetChannel(1) * lumGains[i + j * image.Width / 2])); 
+                            outputPixels.GetPixel(i*2+1, j*2+1).SetChannel(2, (ushort) Math.Min(65535,outputPixels.GetPixel(i*2+1, j*2+1).GetChannel(2) * lumGains[i + j * image.Width / 2]));   
+                        }
+                    }
+                    //output.GammaCorrect(2.2f);
+
+                    output.Write(fileName + "_corrected.tiff");
+                    Console.WriteLine("Written " + fileName);
+                }
+            }
         }
     }
+    
     public void ImportBin()
     {
         var dialog = new OpenFileDialog() { Filter = "Binary files (*.bin)|*.bin|All files (*.*)|*.*" };
@@ -648,7 +687,18 @@ public partial class MainWindowVM : ObservableObject
                 tmp = gainMapOpcodes[2].mapGains;
                 gainMapOpcodes[2].mapGains = gainMapOpcodes[3].mapGains;
                 gainMapOpcodes[3].mapGains = tmp;
-            }              
+            }  
+            if (GBRGFix) {                                                               //probably only specific to MotionCam Tools Exports
+                var tmp = gainMapOpcodes[0].mapGains;
+                gainMapOpcodes[0].mapGains = gainMapOpcodes[3].mapGains;
+                gainMapOpcodes[3].mapGains = tmp;
+                tmp = gainMapOpcodes[0].mapGains;
+                gainMapOpcodes[0].mapGains = gainMapOpcodes[1].mapGains;
+                gainMapOpcodes[1].mapGains = tmp;
+                tmp = gainMapOpcodes[2].mapGains;
+                gainMapOpcodes[2].mapGains = gainMapOpcodes[3].mapGains;
+                gainMapOpcodes[3].mapGains = tmp;
+            }             
         }   
 
     }
