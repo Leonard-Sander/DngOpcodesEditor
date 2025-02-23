@@ -8,7 +8,7 @@ Additionally to the original functionality, there are 2 more Buttons in the UI.
 
 "Batch White Image" allows reading a white image dng and exporting a version with luminance stripped for use in Raw Therapee. This will only work with dngs that have a black level of 0. Anything above that will lead to miscorrections. Afterwards you can select a dng sequence which the luminance stripped white image will be applied to. Check "Keep Luminance" to also apply the Luminance Correction to the dngs. If not there will be another Prompt afterwards for TIFF Files. This however is very WIP as it corrects the luminance component on intermediate linear ACESp0 TIFF Files from RawTherapee. By default all intermediate files are deleted. Enable "Keep Intermediate Files" to see the conversion steps for both white image and converted dngs.
 
-These Features are very slow and ressource inefficient. Expect Issues and Crashes. Maybe restart your PC and do not access the files via Windows Explorer while conversion. 
+These Features are very slow and ressource inefficient. Expect Issues and Crashes. RESTART the programme after using Batch Options. Maybe restart your PC and do not access the files via Windows Explorer while conversion. 
 There is no Progress Bar. Execute from IDE for Progress Notice in Console. 
 
 Additionally to exiftool, dcraw.exe binary is included to extract raw data tiff from dngs. Also Adobe SDK dng_validate.exe binary is included to validate input dngs and author output dngs.
